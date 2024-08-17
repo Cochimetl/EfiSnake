@@ -1,7 +1,7 @@
 #include <efi.h>
 #include <efilib.h>
 #include "util.h"
-#define GAME_WIDTH 80
+#define GAME_WIDTH 40
 #define GAME_HEIGHT 20
 
 
@@ -44,6 +44,7 @@ struct Snake
   GameNodePos tail;
   GameNodePos head;
   Direction direction;
+  UINTN length;
 } gSnake;
 
 GameNode * snake_getGameNode(GameNodePos pos)
@@ -56,10 +57,33 @@ GameNode * snake_getGameNode(GameNodePos pos)
 EFI_STATUS snake_drawGameNode(EFI_SYSTEM_TABLE *SystemTable, GameNodePos pos)
 {
   GameNode *node = snake_getGameNode(pos);
-  uefi_call_wrapper(SystemTable->ConOut->SetCursorPosition, 3, SystemTable->ConOut, gField.columnOffset + pos.x, gField.rowOffset + pos.y);
-  uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, node->snake ? gSnakeColour : EFI_BLACK);
-  uefi_call_wrapper(SystemTable->ConOut->OutputString, 2, SystemTable->ConOut, L" ");
+  uefi_call_wrapper(SystemTable->ConOut->SetCursorPosition, 3, SystemTable->ConOut, gField.columnOffset + pos.x * 2, gField.rowOffset + pos.y);
+  uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, node->snake ? gSnakeColour : node->fruit ? gFruitColour : EFI_BLACK);
+  uefi_call_wrapper(SystemTable->ConOut->OutputString, 2, SystemTable->ConOut, L"  ");
   return EFI_SUCCESS;
+}
+
+EFI_STATUS snake_putFruit(EFI_SYSTEM_TABLE *SystemTable)
+{
+  UINTN randomValue = 0;
+  util_rng(SystemTable, &randomValue);
+  randomValue = randomValue % ((GAME_WIDTH * GAME_HEIGHT) - gSnake.length);
+  for(UINTN x = 0; x < GAME_WIDTH; x++)
+  {
+    for(UINTN y = 0; y < GAME_HEIGHT; y++)
+    {
+      GameNodePos nodePos = { x, y };
+      GameNode *node = snake_getGameNode(nodePos);
+      if(node->snake) continue;
+      if(randomValue-- == 0)
+      {
+        node->fruit = TRUE;
+        snake_drawGameNode(SystemTable, nodePos);
+        return EFI_SUCCESS;
+      }
+    }
+  }
+  return EFI_NOT_FOUND;
 }
 
 
@@ -68,20 +92,25 @@ EFI_STATUS snake_setupField(EFI_SYSTEM_TABLE *SystemTable)
   uefi_call_wrapper(SystemTable->ConOut->ClearScreen, 1, SystemTable->ConOut);
   SetMem(&gField.field[0], sizeof(GameNode) * GAME_WIDTH * GAME_HEIGHT, 0);
 
-  gField.rowOffset = 5;
-  gField.columnOffset = 5;
+
+  UINTN rows;
+  UINTN columns;
+  uefi_call_wrapper(SystemTable->ConOut->QueryMode, 4, SystemTable->ConOut, SystemTable->ConOut->Mode->Mode, &columns, &rows);
+
+  gField.rowOffset = (rows - GAME_HEIGHT) / 2;
+  gField.columnOffset = (columns - GAME_WIDTH * 2) / 2;
   UINTN borderRowOffset = gField.rowOffset - 1;
-  UINTN borderColumnOffset = gField.columnOffset - 1;
-  UINTN borderWidth = GAME_WIDTH + 2;
+  UINTN borderColumnOffset = gField.columnOffset - 2;
+  UINTN borderWidth = GAME_WIDTH * 2 + 4;
   UINTN borderHeight = GAME_HEIGHT + 2;
 
   uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, gBorderColour);
   for(UINTN row = 0; row < borderHeight; row++)
   {
       uefi_call_wrapper(SystemTable->ConOut->SetCursorPosition, 3, SystemTable->ConOut, borderColumnOffset, borderRowOffset + row);
-      uefi_call_wrapper(SystemTable->ConOut->OutputString, 2, SystemTable->ConOut, L" ");
-      uefi_call_wrapper(SystemTable->ConOut->SetCursorPosition, 3, SystemTable->ConOut, borderColumnOffset + borderWidth - 1, borderRowOffset + row);
-      uefi_call_wrapper(SystemTable->ConOut->OutputString, 2, SystemTable->ConOut, L" ");
+      uefi_call_wrapper(SystemTable->ConOut->OutputString, 2, SystemTable->ConOut, L"  ");
+      uefi_call_wrapper(SystemTable->ConOut->SetCursorPosition, 3, SystemTable->ConOut, borderColumnOffset + borderWidth - 2, borderRowOffset + row);
+      uefi_call_wrapper(SystemTable->ConOut->OutputString, 2, SystemTable->ConOut, L"  ");
   }
   for(UINTN column = 0; column < borderWidth; column++)
   {
@@ -111,6 +140,9 @@ EFI_STATUS snake_setupField(EFI_SYSTEM_TABLE *SystemTable)
   snake_drawGameNode(SystemTable, middlePos);
 
   gSnake.direction = RIGHT;
+  gSnake.length = 3;
+
+  snake_putFruit(SystemTable);
   return EFI_SUCCESS;
 }
 
@@ -146,9 +178,20 @@ EFI_STATUS snake_moveSnake(EFI_SYSTEM_TABLE *SystemTable)
   snake_drawGameNode(SystemTable, newHeadPos);
   gSnake.head = newHeadPos;
 
-  oldTail->snake = FALSE;
-  snake_drawGameNode(SystemTable, oldTailPos);
-  gSnake.tail = newTailPos;
+
+  if(newHead->fruit)
+  {
+    newHead->fruit = FALSE;
+    gSnake.length = gSnake.length + 1;
+    snake_putFruit(SystemTable);
+  }
+  else
+  {
+    oldTail->snake = FALSE;
+    snake_drawGameNode(SystemTable, oldTailPos);
+    gSnake.tail = newTailPos;
+  }
+
 
   return EFI_SUCCESS;
 }
