@@ -6,6 +6,7 @@ add_library(${TARGET_NAME} SHARED
                               main.c
                               util.c
                               menu.c
+                              snake.c
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIRECTORY})

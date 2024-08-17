@@ -1,6 +1,7 @@
 #include <efi.h>
 #include "util.h"
 #include "menu.h"
+#include "snake.h"
 
 EFI_STATUS
 EFIAPI
@@ -16,9 +17,10 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
 
     if(selection == 0)
     {
+      snake_passControl(SystemTable);
       menu_clearOptions(SystemTable);
       menu_addOption(L"NONSENSE");
-      menu_drawOptions(SystemTable);
+      menu_draw(SystemTable);
     }
     else if(selection == 1)
     {

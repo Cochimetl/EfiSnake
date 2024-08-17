@@ -1,5 +1,6 @@
 #include <efi.h>
 #include <efilib.h>
+#include "util.h"
 
 UINTN gBackgroundColour = EFI_BLACK;
 UINTN gTextColour = EFI_WHITE;
@@ -138,7 +139,7 @@ EFI_STATUS menu_draw(EFI_SYSTEM_TABLE *SystemTable)
 
   return EFI_SUCCESS;
 }
-BOOLEAN menu_keysEqual(EFI_INPUT_KEY a, EFI_INPUT_KEY b) { return a.ScanCode == b.ScanCode && a.UnicodeChar == b.UnicodeChar; }
+
 
 EFI_STATUS menu_passControl(EFI_SYSTEM_TABLE *SystemTable, UINTN *selected)
 {
@@ -158,17 +159,17 @@ EFI_STATUS menu_passControl(EFI_SYSTEM_TABLE *SystemTable, UINTN *selected)
     while(uefi_call_wrapper(SystemTable->ConIn->ReadKeyStroke, 2, SystemTable->ConIn, &key) == EFI_SUCCESS)
     {
       BOOLEAN change = FALSE;
-      if(menu_keysEqual(key, KEY_UP) || menu_keysEqual(key, KEY_W))
+      if(util_keysEqual(key, KEY_UP) || util_keysEqual(key, KEY_W))
       {
         gMenuEntries.selected = gMenuEntries.selected ? gMenuEntries.selected - 1 : gMenuEntries.usedMenuEntries - 1;
         change = TRUE;
       }
-      else if(menu_keysEqual(key, KEY_DOWN) || menu_keysEqual(key, KEY_S))
+      else if(util_keysEqual(key, KEY_DOWN) || util_keysEqual(key, KEY_S))
       {
         gMenuEntries.selected = (gMenuEntries.selected + 1) % gMenuEntries.usedMenuEntries;
         change = TRUE;
       }
-      else if(menu_keysEqual(key, KEY_ENTER))
+      else if(util_keysEqual(key, KEY_ENTER))
       {
         *selected = gMenuEntries.selected;
         return EFI_SUCCESS;
