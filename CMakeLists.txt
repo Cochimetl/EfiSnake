@@ -30,36 +30,4 @@ set(LINK_FLAGS -nostdlib -T ${EFI_LDS} -shared -Bsymbolic -L ${EFI_LIB_PATH} -L 
 
 include_directories(${EFI_INCLUDE_PATH} ${EFI_INCLUDE_PATH}/${ARCH} ${EFI_INCLUDE_PATH}/protocol)
 
-set(TARGET_NAME Snake)
-
-add_library(${TARGET_NAME} SHARED src/main.c)
-target_compile_options(${TARGET_NAME} PRIVATE ${COMPILE_FLAGS})
-target_link_options(${TARGET_NAME} PRIVATE ${LINK_FLAGS})
-target_link_libraries(${TARGET_NAME} PRIVATE efi gnuefi)
-
-add_custom_command(TARGET "${TARGET_NAME}" POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-
-function(efi_objcopy)
-    cmake_parse_arguments(parsedargs "" "INFILE;OUTFILE" "SECTIONS" ${ARGN})
-    add_custom_command(TARGET "${TARGET_NAME}" POST_BUILD
-            COMMAND ${CMAKE_OBJCOPY}
-            ${parsedargs_SECTIONS}
-            --target=efi-app-x86_64 #  "efi-app", "efi-bsd", "efi-rtd"
-            "${parsedargs_INFILE}"
-            "${parsedargs_OUTFILE}")
-endfunction()
-
-set(ELF_SECTIONS
-        -j .text
-        -j .sdata
-        -j .data
-        -j .dynamic
-        -j .dynsym
-        -j .rel
-        -j .rela
-        -j .reloc)
-
-efi_objcopy(INFILE "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/lib${TARGET_NAME}.so"
-        OUTFILE "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TARGET_NAME}.efi"
-        SECTIONS ${ELF_SECTIONS})
+add_subdirectory(src)
