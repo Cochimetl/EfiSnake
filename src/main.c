@@ -8,6 +8,10 @@ EFI_STATUS
 EFIAPI
 efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
   InitializeLib(ImageHandle, SystemTable);
+  uefi_call_wrapper(SystemTable->BootServices->SetWatchdogTimer, 4, 0, 0, 0, NULL);
+
+  util_selectReasonableMode(SystemTable);
+
   menu_addOption(L"START");
   menu_addOption(L"QUIT");
   menu_draw(SystemTable);

@@ -1,4 +1,5 @@
 #include <efi.h>
+
 EFI_STATUS util_print(EFI_SYSTEM_TABLE *SystemTable, CHAR16 *text)
 {
   return uefi_call_wrapper(SystemTable->ConOut->OutputString, 2, SystemTable->ConOut, text);
@@ -20,6 +21,28 @@ EFI_STATUS util_rng(EFI_SYSTEM_TABLE *SystemTable, UINTN *value)
     return EFI_SUCCESS;
   }
 
-  uefi_call_wrapper(rngProtocol->GetRNG, 4, rngProtocol, NULL, sizeof(*value), *value);
+  uefi_call_wrapper(rngProtocol->GetRNG, 4, rngProtocol, NULL, sizeof(UINTN), value);
+  return EFI_SUCCESS;
+}
+
+EFI_STATUS util_selectReasonableMode(EFI_SYSTEM_TABLE *SystemTable)
+{
+  UINTN rows;
+  UINTN columns;
+  UINTN bestRows = 0xFFFF;
+  UINTN bestColumns = 0xFFFF;
+  UINTN bestMode = 0;
+  for(UINTN i = 0; i <= SystemTable->ConOut->Mode->MaxMode; i++)
+  {
+    uefi_call_wrapper(SystemTable->ConOut->QueryMode, 4, SystemTable->ConOut, i, &columns, &rows);
+    if(rows <= bestRows && rows >= 40 && columns <= bestColumns && columns >= 100)
+    {
+      bestMode = i;
+      bestRows = rows;
+      bestColumns = columns;
+    }
+  }
+
+  uefi_call_wrapper(SystemTable->ConOut->SetMode, 2, SystemTable->ConOut, bestMode);
   return EFI_SUCCESS;
 }
