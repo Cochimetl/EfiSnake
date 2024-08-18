@@ -47,6 +47,44 @@ struct Snake
   UINTN length;
 } gSnake;
 
+struct Score
+{
+  UINTN total;
+  UINTN traveledDistance;
+} gScore;
+
+UINTN snake_scorePoints()
+{
+  if(gScore.traveledDistance <= 5)
+  {
+    return 100;
+  }
+  else if(gScore.traveledDistance <= 10)
+  {
+    return 50;
+  }
+  else if(gScore.traveledDistance < 25)
+  {
+    return 25;
+  }
+  else if(gScore.traveledDistance < 40)
+  {
+    return 10;
+  }
+  else
+  {
+    return 5;
+  }
+}
+
+EFI_STATUS snake_drawScore(EFI_SYSTEM_TABLE *SystemTable)
+{
+  uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, EFI_WHITE);
+  uefi_call_wrapper(SystemTable->ConOut->SetCursorPosition, 3, SystemTable->ConOut, gField.columnOffset + ((GAME_WIDTH * 2) * 0.9), gField.rowOffset + GAME_HEIGHT + 3);
+  Print(L"%d", gScore.total);
+  return EFI_SUCCESS;
+}
+
 GameNode * snake_getGameNode(GameNodePos pos)
 {
   if(pos.x >= GAME_WIDTH || pos.y >= GAME_HEIGHT) return NULL;
@@ -79,6 +117,7 @@ EFI_STATUS snake_putFruit(EFI_SYSTEM_TABLE *SystemTable)
       {
         node->fruit = TRUE;
         snake_drawGameNode(SystemTable, nodePos);
+        gScore.traveledDistance = 0;
         return EFI_SUCCESS;
       }
     }
@@ -142,14 +181,16 @@ EFI_STATUS snake_setupField(EFI_SYSTEM_TABLE *SystemTable)
   gSnake.direction = RIGHT;
   gSnake.length = 3;
 
+  gScore.total = 0;
+  snake_drawScore(SystemTable);
+
   snake_putFruit(SystemTable);
   return EFI_SUCCESS;
 }
 
 EFI_STATUS snake_moveSnake(EFI_SYSTEM_TABLE *SystemTable)
 {
-
-  uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, EFI_WHITE);
+  gScore.traveledDistance++;
   GameNodePos oldTailPos = gSnake.tail;
   GameNodePos oldHeadPos = gSnake.head;
   GameNode * oldTail = snake_getGameNode(oldTailPos);
@@ -183,6 +224,8 @@ EFI_STATUS snake_moveSnake(EFI_SYSTEM_TABLE *SystemTable)
   {
     newHead->fruit = FALSE;
     gSnake.length = gSnake.length + 1;
+    gScore.total += snake_scorePoints();
+    snake_drawScore(SystemTable);
     snake_putFruit(SystemTable);
   }
   else
@@ -196,7 +239,7 @@ EFI_STATUS snake_moveSnake(EFI_SYSTEM_TABLE *SystemTable)
   return EFI_SUCCESS;
 }
 
-EFI_STATUS snake_passControl(EFI_SYSTEM_TABLE *SystemTable)
+EFI_STATUS snake_passControl(EFI_SYSTEM_TABLE *SystemTable, UINTN * score)
 {
 
   const EFI_INPUT_KEY KEY_UP = {1, 0};

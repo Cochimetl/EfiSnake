@@ -1,4 +1,5 @@
 #include <efi.h>
+#include <efilib.h>
 #include "util.h"
 #include "menu.h"
 #include "snake.h"
@@ -6,6 +7,7 @@
 EFI_STATUS
 EFIAPI
 efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
+  InitializeLib(ImageHandle, SystemTable);
   menu_addOption(L"START");
   menu_addOption(L"QUIT");
   menu_draw(SystemTable);
@@ -17,7 +19,8 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
 
     if(selection == 0)
     {
-      snake_passControl(SystemTable);
+      UINTN score = 0;
+      snake_passControl(SystemTable, &score);
       menu_clearOptions(SystemTable);
       menu_addOption(L"NONSENSE");
       menu_draw(SystemTable);
