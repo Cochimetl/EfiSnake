@@ -12,9 +12,9 @@ UINTN gFruitColour = EFI_BACKGROUND_MAGENTA;
 typedef enum
 {
   UP,
+  RIGHT,
   DOWN,
-  LEFT,
-  RIGHT
+  LEFT
 } Direction;
 
 
@@ -300,24 +300,33 @@ EFI_STATUS snake_singleplayer(EFI_SYSTEM_TABLE *SystemTable, UINTN * score)
   while(uefi_call_wrapper(SystemTable->BootServices->Stall, 1, 1 * 100 * 1000) == EFI_SUCCESS)
   {
     EFI_INPUT_KEY key;
+    Direction oldDirection = gSnake1.direction;
     while(uefi_call_wrapper(SystemTable->ConIn->ReadKeyStroke, 2, SystemTable->ConIn, &key) == EFI_SUCCESS)
     {
+      Direction newDirection;
       if(util_keysEqual(key, KEY_UP) || util_keysEqual(key, KEY_W))
       {
-        gSnake1.direction = UP;
+        newDirection = UP;
       }
       else if(util_keysEqual(key, KEY_DOWN) || util_keysEqual(key, KEY_S))
       {
-        gSnake1.direction = DOWN;
+        newDirection = DOWN;
       }
       else if(util_keysEqual(key, KEY_RIGHT) || util_keysEqual(key, KEY_D))
       {
-        gSnake1.direction = RIGHT;
+        newDirection = RIGHT;
       }
       else if(util_keysEqual(key, KEY_LEFT) || util_keysEqual(key, KEY_A))
       {
-        gSnake1.direction = LEFT;
+        newDirection = LEFT;
       }
+      else
+      {
+        continue;
+      }
+
+      INTN directionDifference = newDirection > oldDirection ? newDirection - oldDirection : oldDirection - newDirection;
+      if(directionDifference != 2) gSnake1.direction = newDirection;
     }
 
     if(snake_moveSnake(SystemTable, &gSnake1) != EFI_SUCCESS)
@@ -352,40 +361,49 @@ EFI_STATUS snake_multiplayer(EFI_SYSTEM_TABLE *SystemTable, UINTN * score)
   while(uefi_call_wrapper(SystemTable->BootServices->Stall, 1, 1 * 100 * 1000) == EFI_SUCCESS)
   {
     EFI_INPUT_KEY key;
+    Direction oldDirection1 = gSnake1.direction;
+    Direction oldDirection2 = gSnake2.direction;
     while(uefi_call_wrapper(SystemTable->ConIn->ReadKeyStroke, 2, SystemTable->ConIn, &key) == EFI_SUCCESS)
     {
-      if(util_keysEqual(key, KEY_UP))
+      Direction newDirection;
+      if(util_keysEqual(key, KEY_UP) || util_keysEqual(key, KEY_W))
       {
-        gSnake1.direction = UP;
+        newDirection = UP;
       }
-      else if(util_keysEqual(key, KEY_W))
+      else if(util_keysEqual(key, KEY_DOWN) || util_keysEqual(key, KEY_S))
       {
-        gSnake2.direction = UP;
+        newDirection = DOWN;
       }
-      else if(util_keysEqual(key, KEY_DOWN))
+      else if(util_keysEqual(key, KEY_RIGHT) || util_keysEqual(key, KEY_D))
       {
-        gSnake1.direction = DOWN;
+        newDirection = RIGHT;
       }
-      else if(util_keysEqual(key, KEY_S))
+      else if(util_keysEqual(key, KEY_LEFT) || util_keysEqual(key, KEY_A))
       {
-        gSnake2.direction = DOWN;
+        newDirection = LEFT;
       }
-      else if(util_keysEqual(key, KEY_RIGHT))
+      else
       {
-        gSnake1.direction = RIGHT;
+        continue;
       }
-      else if(util_keysEqual(key, KEY_D))
+
+
+      Snake *snake;
+      Direction oldDirection;
+      if(util_keysEqual(key, KEY_UP) || util_keysEqual(key, KEY_RIGHT) || util_keysEqual(key, KEY_DOWN) || util_keysEqual(key, KEY_LEFT))
       {
-        gSnake2.direction = RIGHT;
+        snake = &gSnake1;
+        oldDirection = oldDirection1;
       }
-      else if(util_keysEqual(key, KEY_LEFT) )
+      else if(util_keysEqual(key, KEY_W) || util_keysEqual(key, KEY_D) || util_keysEqual(key, KEY_S) || util_keysEqual(key, KEY_A))
       {
-        gSnake1.direction = LEFT;
+        snake = &gSnake2;
+        oldDirection = oldDirection2;
       }
-      else if(util_keysEqual(key, KEY_A))
-      {
-        gSnake2.direction = LEFT;
-      }
+
+
+      INTN directionDifference = newDirection > oldDirection ? newDirection - oldDirection : oldDirection - newDirection;
+      if(directionDifference != 2) snake->direction = newDirection;
     }
 
     if(snake_moveSnake(SystemTable, &gSnake1) != EFI_SUCCESS || snake_moveSnake(SystemTable, &gSnake2) != EFI_SUCCESS)
