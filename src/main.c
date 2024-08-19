@@ -12,7 +12,8 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
 
   util_selectReasonableMode(SystemTable);
 
-  menu_addOption(L"START");
+  menu_addOption(L"SINGLEPLAYER");
+  menu_addOption(L"MULTIPLAYER");
   menu_addOption(L"QUIT");
   menu_draw(SystemTable);
 
@@ -24,22 +25,18 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
     if(selection == 0)
     {
       UINTN score = 0;
-      snake_passControl(SystemTable, &score);
-      menu_clearOptions(SystemTable);
-      menu_addOption(L"NONSENSE");
+      snake_singleplayer(SystemTable, &score);
       menu_draw(SystemTable);
     }
     else if(selection == 1)
     {
-      return EFI_SUCCESS;
+      UINTN score = 0;
+      snake_multiplayer(SystemTable, &score);
+      menu_draw(SystemTable);
     }
-    else
+    else if(selection == 2)
     {
-      menu_clearOptions(SystemTable);
-      menu_removeOptions();
-      menu_addOption(L"START");
-      menu_addOption(L"QUIT");
-      menu_drawOptions(SystemTable);
+      return EFI_SUCCESS;
     }
   }
 

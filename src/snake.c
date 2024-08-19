@@ -7,7 +7,6 @@
 
 UINTN gBorderColour = EFI_BACKGROUND_LIGHTGRAY;
 UINTN gFruitColour = EFI_BACKGROUND_MAGENTA;
-UINTN gSnakeColour = EFI_BACKGROUND_GREEN;
 
 
 typedef enum
@@ -18,9 +17,29 @@ typedef enum
   RIGHT
 } Direction;
 
+
 typedef struct
 {
-  BOOLEAN snake;
+  UINTN x;
+  UINTN y;
+} GameNodePos;
+
+typedef struct
+{
+  GameNodePos tail;
+  GameNodePos head;
+  Direction direction;
+  UINTN length;
+  UINTN colour;
+} Snake;
+
+Snake gSnake1;
+
+Snake gSnake2;
+
+typedef struct
+{
+  Snake *snake;
   Direction snakeDirection;
   BOOLEAN fruit;
 } GameNode;
@@ -33,19 +52,6 @@ struct GameField
 } gField = {{}, 0, 0};
 
 
-typedef struct
-{
-  UINTN x;
-  UINTN y;
-} GameNodePos;
-
-struct Snake
-{
-  GameNodePos tail;
-  GameNodePos head;
-  Direction direction;
-  UINTN length;
-} gSnake;
 
 struct Score
 {
@@ -96,7 +102,7 @@ EFI_STATUS snake_drawGameNode(EFI_SYSTEM_TABLE *SystemTable, GameNodePos pos)
 {
   GameNode *node = snake_getGameNode(pos);
   uefi_call_wrapper(SystemTable->ConOut->SetCursorPosition, 3, SystemTable->ConOut, gField.columnOffset + pos.x * 2, gField.rowOffset + pos.y);
-  uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, node->snake ? gSnakeColour : node->fruit ? gFruitColour : EFI_BLACK);
+  uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, node->snake ? node->snake->colour : node->fruit ? gFruitColour : EFI_BLACK);
   uefi_call_wrapper(SystemTable->ConOut->OutputString, 2, SystemTable->ConOut, L"  ");
   return EFI_SUCCESS;
 }
@@ -105,7 +111,7 @@ EFI_STATUS snake_putFruit(EFI_SYSTEM_TABLE *SystemTable)
 {
   UINTN randomValue = 0;
   util_rng(SystemTable, &randomValue);
-  randomValue = randomValue % ((GAME_WIDTH * GAME_HEIGHT) - gSnake.length);
+  randomValue = randomValue % ((GAME_WIDTH * GAME_HEIGHT) - gSnake1.length - gSnake2.length);
   for(UINTN x = 0; x < GAME_WIDTH; x++)
   {
     for(UINTN y = 0; y < GAME_HEIGHT; y++)
@@ -125,8 +131,51 @@ EFI_STATUS snake_putFruit(EFI_SYSTEM_TABLE *SystemTable)
   return EFI_NOT_FOUND;
 }
 
+EFI_STATUS snake_setupSnake(EFI_SYSTEM_TABLE *SystemTable, Snake *snake, GameNodePos head, GameNodePos tail, UINTN colour)
+{
+  snake->head = head;
+  snake->tail = tail;
+  snake->colour = colour;
+  GameNodePos segmentPos = tail;
+  BOOLEAN preferHorizontal = TRUE;
+  Direction segmentDirection;
+  while(TRUE)
+  {
+    GameNode * segment = snake_getGameNode(segmentPos);
+    segment->snake = snake;
+    snake_drawGameNode(SystemTable, segmentPos);
 
-EFI_STATUS snake_setupField(EFI_SYSTEM_TABLE *SystemTable)
+    BOOLEAN horizontalNeeded = segmentPos.x != head.x;
+    BOOLEAN verticalNeeded = segmentPos.y != head.y;
+    if((horizontalNeeded && verticalNeeded && preferHorizontal) ||
+       (horizontalNeeded && !verticalNeeded))
+    {
+      segmentDirection = segmentPos.x < head.x ? RIGHT : LEFT;
+
+      segmentPos.x += (segmentDirection == RIGHT ? 1 : -1);
+      segment->snakeDirection = segmentDirection;
+      snake->length++;
+      preferHorizontal = FALSE;
+    }
+    else if((horizontalNeeded && verticalNeeded && !preferHorizontal) ||
+       (!horizontalNeeded && verticalNeeded))
+    {
+      segmentDirection = segmentPos.y < head.y ? DOWN : UP;
+
+      segmentPos.y += (segmentDirection == DOWN ? 1 : -1);
+      segment->snakeDirection = segmentDirection;
+      snake->length++;
+      preferHorizontal = TRUE;
+    }
+    else
+    {
+        snake->direction = segmentDirection;
+        return EFI_SUCCESS;
+    }
+  }
+}
+
+EFI_STATUS snake_setupField(EFI_SYSTEM_TABLE *SystemTable, BOOLEAN multiplayer)
 {
   uefi_call_wrapper(SystemTable->ConOut->ClearScreen, 1, SystemTable->ConOut);
   SetMem(&gField.field[0], sizeof(GameNode) * GAME_WIDTH * GAME_HEIGHT, 0);
@@ -159,28 +208,16 @@ EFI_STATUS snake_setupField(EFI_SYSTEM_TABLE *SystemTable)
       uefi_call_wrapper(SystemTable->ConOut->OutputString, 2, SystemTable->ConOut, L" ");
   }
 
-  gSnake.head.x = 5;
-  gSnake.head.y = 5;
-  GameNode * head = snake_getGameNode(gSnake.head);
-  head->snake = TRUE;
-  head->snakeDirection = RIGHT;
-  snake_drawGameNode(SystemTable, gSnake.head);
-  gSnake.tail.x = 3;
-  gSnake.tail.y = 5;
-  GameNode * tail = snake_getGameNode(gSnake.tail);
-  tail->snake = TRUE;
-  tail->snakeDirection = RIGHT;
-  snake_drawGameNode(SystemTable, gSnake.tail);
+  GameNodePos snake1Head = {4,1};
+  GameNodePos snake1Tail = {1,1};
+  snake_setupSnake(SystemTable, &gSnake1, snake1Head, snake1Tail, EFI_BACKGROUND_GREEN );
 
-  GameNodePos middlePos = { 4, 5 };
-  GameNode * middle = snake_getGameNode(middlePos);
-  middle->snake = TRUE;
-  middle->snakeDirection = RIGHT;
-  snake_drawGameNode(SystemTable, middlePos);
-
-  gSnake.direction = RIGHT;
-  gSnake.length = 3;
-
+  if(multiplayer)
+  {
+    GameNodePos snake2Head = { GAME_WIDTH - 1 - 4, GAME_HEIGHT - 1 - 1};
+    GameNodePos snake2Tail = { GAME_WIDTH - 1 - 1, GAME_HEIGHT - 1 - 1 };
+    snake_setupSnake(SystemTable, &gSnake2, snake2Head, snake2Tail, EFI_BACKGROUND_RED );
+  }
   gScore.total = 0;
   snake_drawScore(SystemTable);
 
@@ -188,26 +225,26 @@ EFI_STATUS snake_setupField(EFI_SYSTEM_TABLE *SystemTable)
   return EFI_SUCCESS;
 }
 
-EFI_STATUS snake_moveSnake(EFI_SYSTEM_TABLE *SystemTable)
+EFI_STATUS snake_moveSnake(EFI_SYSTEM_TABLE *SystemTable, Snake *snake)
 {
   gScore.traveledDistance++;
-  GameNodePos oldTailPos = gSnake.tail;
-  GameNodePos oldHeadPos = gSnake.head;
+  GameNodePos oldTailPos = snake->tail;
+  GameNodePos oldHeadPos = snake->head;
   GameNode * oldTail = snake_getGameNode(oldTailPos);
   GameNode * oldHead = snake_getGameNode(oldHeadPos);
   Direction oldTailDirection = oldTail->snakeDirection;
 
   GameNodePos newTailPos = { oldTailPos.x + (oldTailDirection == RIGHT ? 1 : oldTailDirection == LEFT ? -1 : 0), 
                              oldTailPos.y + (oldTailDirection == DOWN ? 1 : oldTailDirection == UP ? -1 : 0)};
-  GameNodePos newHeadPos = { oldHeadPos.x + (gSnake.direction == RIGHT ? 1 : gSnake.direction == LEFT ? -1 : 0), 
-                             oldHeadPos.y + (gSnake.direction == DOWN ? 1 : gSnake.direction == UP ? -1 : 0)};
+  GameNodePos newHeadPos = { oldHeadPos.x + (snake->direction == RIGHT ? 1 : snake->direction == LEFT ? -1 : 0), 
+                             oldHeadPos.y + (snake->direction == DOWN ? 1 : snake->direction == UP ? -1 : 0)};
 
   if(newHeadPos.x >= GAME_WIDTH || newHeadPos.y >= GAME_HEIGHT)
   {
     return EFI_NOT_FOUND;
   }
 
-  oldHead->snakeDirection = gSnake.direction;
+  oldHead->snakeDirection = snake->direction;
   GameNode *newHead = snake_getGameNode(newHeadPos);
   if(newHead->snake)
   {
@@ -215,31 +252,31 @@ EFI_STATUS snake_moveSnake(EFI_SYSTEM_TABLE *SystemTable)
   }
 
 
-  newHead->snake = TRUE;
+  newHead->snake = snake;
   snake_drawGameNode(SystemTable, newHeadPos);
-  gSnake.head = newHeadPos;
+  snake->head = newHeadPos;
 
 
   if(newHead->fruit)
   {
     newHead->fruit = FALSE;
-    gSnake.length = gSnake.length + 1;
+    snake->length++;
     gScore.total += snake_scorePoints();
     snake_drawScore(SystemTable);
     snake_putFruit(SystemTable);
   }
   else
   {
-    oldTail->snake = FALSE;
+    oldTail->snake = NULL;
     snake_drawGameNode(SystemTable, oldTailPos);
-    gSnake.tail = newTailPos;
+    snake->tail = newTailPos;
   }
 
 
   return EFI_SUCCESS;
 }
 
-EFI_STATUS snake_passControl(EFI_SYSTEM_TABLE *SystemTable, UINTN * score)
+EFI_STATUS snake_singleplayer(EFI_SYSTEM_TABLE *SystemTable, UINTN * score)
 {
 
   const EFI_INPUT_KEY KEY_UP = {1, 0};
@@ -256,7 +293,7 @@ EFI_STATUS snake_passControl(EFI_SYSTEM_TABLE *SystemTable, UINTN * score)
 
 
 
-  snake_setupField(SystemTable);
+  snake_setupField(SystemTable, FALSE);
 
 
   uefi_call_wrapper(SystemTable->ConIn->Reset, 2, SystemTable->ConIn, FALSE);
@@ -267,23 +304,91 @@ EFI_STATUS snake_passControl(EFI_SYSTEM_TABLE *SystemTable, UINTN * score)
     {
       if(util_keysEqual(key, KEY_UP) || util_keysEqual(key, KEY_W))
       {
-        gSnake.direction = UP;
+        gSnake1.direction = UP;
       }
       else if(util_keysEqual(key, KEY_DOWN) || util_keysEqual(key, KEY_S))
       {
-        gSnake.direction = DOWN;
+        gSnake1.direction = DOWN;
       }
       else if(util_keysEqual(key, KEY_RIGHT) || util_keysEqual(key, KEY_D))
       {
-        gSnake.direction = RIGHT;
+        gSnake1.direction = RIGHT;
       }
       else if(util_keysEqual(key, KEY_LEFT) || util_keysEqual(key, KEY_A))
       {
-        gSnake.direction = LEFT;
+        gSnake1.direction = LEFT;
       }
     }
 
-    if(snake_moveSnake(SystemTable) != EFI_SUCCESS)
+    if(snake_moveSnake(SystemTable, &gSnake1) != EFI_SUCCESS)
+    {
+     return EFI_SUCCESS;
+    }
+  }
+  return EFI_DEVICE_ERROR;
+}
+
+EFI_STATUS snake_multiplayer(EFI_SYSTEM_TABLE *SystemTable, UINTN * score)
+{
+
+  const EFI_INPUT_KEY KEY_UP = {1, 0};
+  const EFI_INPUT_KEY KEY_W = {0, 119};
+
+  const EFI_INPUT_KEY KEY_DOWN = {2, 0};
+  const EFI_INPUT_KEY KEY_S = {0, 115};
+
+  const EFI_INPUT_KEY KEY_RIGHT = {3, 0};
+  const EFI_INPUT_KEY KEY_D = {0, 100};
+
+  const EFI_INPUT_KEY KEY_LEFT = {4, 0};
+  const EFI_INPUT_KEY KEY_A = {0, 97};
+
+
+
+  snake_setupField(SystemTable, TRUE);
+
+
+  uefi_call_wrapper(SystemTable->ConIn->Reset, 2, SystemTable->ConIn, FALSE);
+  while(uefi_call_wrapper(SystemTable->BootServices->Stall, 1, 1 * 100 * 1000) == EFI_SUCCESS)
+  {
+    EFI_INPUT_KEY key;
+    while(uefi_call_wrapper(SystemTable->ConIn->ReadKeyStroke, 2, SystemTable->ConIn, &key) == EFI_SUCCESS)
+    {
+      if(util_keysEqual(key, KEY_UP))
+      {
+        gSnake1.direction = UP;
+      }
+      else if(util_keysEqual(key, KEY_W))
+      {
+        gSnake2.direction = UP;
+      }
+      else if(util_keysEqual(key, KEY_DOWN))
+      {
+        gSnake1.direction = DOWN;
+      }
+      else if(util_keysEqual(key, KEY_S))
+      {
+        gSnake2.direction = DOWN;
+      }
+      else if(util_keysEqual(key, KEY_RIGHT))
+      {
+        gSnake1.direction = RIGHT;
+      }
+      else if(util_keysEqual(key, KEY_D))
+      {
+        gSnake2.direction = RIGHT;
+      }
+      else if(util_keysEqual(key, KEY_LEFT) )
+      {
+        gSnake1.direction = LEFT;
+      }
+      else if(util_keysEqual(key, KEY_A))
+      {
+        gSnake2.direction = LEFT;
+      }
+    }
+
+    if(snake_moveSnake(SystemTable, &gSnake1) != EFI_SUCCESS || snake_moveSnake(SystemTable, &gSnake2) != EFI_SUCCESS)
     {
      return EFI_SUCCESS;
     }
