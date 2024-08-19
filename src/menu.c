@@ -133,6 +133,7 @@ EFI_STATUS menu_select(UINTN selection)
 
 EFI_STATUS menu_draw(EFI_SYSTEM_TABLE *SystemTable)
 {
+  uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, gBackgroundColour);
   uefi_call_wrapper(SystemTable->ConOut->ClearScreen, 1, SystemTable->ConOut);
   menu_drawFrame(SystemTable);
   menu_drawOptions(SystemTable);
