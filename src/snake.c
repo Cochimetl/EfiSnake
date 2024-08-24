@@ -225,6 +225,22 @@ EFI_STATUS snake_setupField(EFI_SYSTEM_TABLE *SystemTable, BOOLEAN multiplayer)
   return EFI_SUCCESS;
 }
 
+EFI_STATUS snake_drawVictoryMessage(EFI_SYSTEM_TABLE *SystemTable, CHAR16 *message, UINTN colour)
+{
+  UINTN rows;
+  UINTN columns;
+  uefi_call_wrapper(SystemTable->ConOut->QueryMode, 4, SystemTable->ConOut, SystemTable->ConOut->Mode->Mode, &columns, &rows);
+
+  UINTN offsetX = (columns - StrLen(message)) / 2;
+  UINTN offsetY = rows / 2;
+
+  uefi_call_wrapper(SystemTable->ConOut->SetAttribute, 2, SystemTable->ConOut, colour);
+  uefi_call_wrapper(SystemTable->ConOut->SetCursorPosition, 3, SystemTable->ConOut, offsetX, offsetY);
+  uefi_call_wrapper(SystemTable->ConOut->OutputString, 2, SystemTable->ConOut, message);
+
+  return EFI_SUCCESS;
+}
+
 EFI_STATUS snake_moveSnake(EFI_SYSTEM_TABLE *SystemTable, Snake *snake)
 {
   gScore.traveledDistance++;
@@ -331,6 +347,7 @@ EFI_STATUS snake_singleplayer(EFI_SYSTEM_TABLE *SystemTable, UINTN * score)
 
     if(snake_moveSnake(SystemTable, &gSnake1) != EFI_SUCCESS)
     {
+     *score = gScore.total;
      return EFI_SUCCESS;
     }
   }
@@ -406,9 +423,17 @@ EFI_STATUS snake_multiplayer(EFI_SYSTEM_TABLE *SystemTable, UINTN * score)
       if(directionDifference != 2) snake->direction = newDirection;
     }
 
-    if(snake_moveSnake(SystemTable, &gSnake1) != EFI_SUCCESS || snake_moveSnake(SystemTable, &gSnake2) != EFI_SUCCESS)
+    EFI_STATUS snake1Result = snake_moveSnake(SystemTable, &gSnake1);
+    EFI_STATUS snake2Result = snake_moveSnake(SystemTable, &gSnake2);
+
+    if(snake1Result != EFI_SUCCESS || snake2Result != EFI_SUCCESS)
     {
-     return EFI_SUCCESS;
+      CHAR16* message = snake1Result == EFI_SUCCESS ? L"Player 1 wins!" : snake2Result == EFI_SUCCESS ? L"Player 2 wins!" : L"Draw!";
+      UINTN messageColour = snake1Result == EFI_SUCCESS ? gSnake1.colour : snake2Result == EFI_SUCCESS ? gSnake2.colour : EFI_YELLOW;
+      snake_drawVictoryMessage(SystemTable, message, messageColour);
+      uefi_call_wrapper(SystemTable->BootServices->Stall, 1, 3 * 1000 * 1000);
+      *score = gScore.total;
+      return EFI_SUCCESS;
     }
   }
   return EFI_DEVICE_ERROR;

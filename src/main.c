@@ -2,6 +2,7 @@
 #include <efilib.h>
 #include "util.h"
 #include "menu.h"
+#include "highscore.h"
 #include "snake.h"
 
 EFI_STATUS
@@ -14,27 +15,34 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
 
   menu_addOption(L"SINGLEPLAYER");
   menu_addOption(L"MULTIPLAYER");
+  menu_addOption(L"HIGHSCORE");
   menu_addOption(L"QUIT");
-  menu_draw(SystemTable);
+  
+  highscore_loadScores(SystemTable, ImageHandle);
 
   while(TRUE)
   {
     UINTN selection = 0;
+    menu_draw(SystemTable);
     menu_passControl(SystemTable, &selection);
 
     if(selection == 0)
     {
       UINTN score = 0;
       snake_singleplayer(SystemTable, &score);
-      menu_draw(SystemTable);
+      highscore_passControl(SystemTable, ImageHandle, score);
     }
     else if(selection == 1)
     {
       UINTN score = 0;
       snake_multiplayer(SystemTable, &score);
-      menu_draw(SystemTable);
+      highscore_passControl(SystemTable, ImageHandle, score);
     }
     else if(selection == 2)
+    {
+      highscore_passControl(SystemTable, ImageHandle, 0);
+    }
+    else if(selection == 3)
     {
       return EFI_SUCCESS;
     }
