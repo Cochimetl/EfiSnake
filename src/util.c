@@ -46,3 +46,45 @@ EFI_STATUS util_selectReasonableMode(EFI_SYSTEM_TABLE *SystemTable)
   uefi_call_wrapper(SystemTable->ConOut->SetMode, 2, SystemTable->ConOut, bestMode);
   return EFI_SUCCESS;
 }
+
+EFI_STATUS util_openFile(EFI_SYSTEM_TABLE *SystemTable, EFI_HANDLE ImageHandle, CHAR16 *filename, EFI_FILE_HANDLE *file, BOOLEAN write)
+{
+  EFI_GUID imageProtGuid = (EFI_GUID) EFI_LOADED_IMAGE_PROTOCOL_GUID;
+  EFI_LOADED_IMAGE_PROTOCOL *imageProt;
+  uefi_call_wrapper(SystemTable->BootServices->OpenProtocol, 6, ImageHandle, &imageProtGuid, &imageProt, ImageHandle, NULL, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+
+  EFI_GUID fsGuid = (EFI_GUID) EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+  EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *fsProt;
+  uefi_call_wrapper(SystemTable->BootServices->OpenProtocol, 6, imageProt->DeviceHandle, &fsGuid, &fsProt, ImageHandle, NULL, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+
+  EFI_FILE_PROTOCOL *root;
+  uefi_call_wrapper(fsProt->OpenVolume, 2, fsProt, &root);
+
+  UINT64 mode = write ? (EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE) : EFI_FILE_MODE_READ;
+  EFI_STATUS status = uefi_call_wrapper(root->Open, 5, root, file, filename, mode, 0);
+
+  return status;
+}
+
+EFI_STATUS util_readFile(EFI_SYSTEM_TABLE *SystemTable, EFI_HANDLE ImageHandle, CHAR16 *filename, UINT8 *buffer, UINTN *bufferSize)
+{
+  EFI_FILE_PROTOCOL *file;
+  EFI_STATUS status = util_openFile(SystemTable, ImageHandle, filename, &file, FALSE);
+  if(status != EFI_SUCCESS) return status;
+
+  uefi_call_wrapper(file->Read, 3, file, bufferSize, buffer);
+  uefi_call_wrapper(file->Close, 1, file);
+  return EFI_SUCCESS;
+}
+
+EFI_STATUS util_writeFile(EFI_SYSTEM_TABLE *SystemTable, EFI_HANDLE ImageHandle, CHAR16 *filename, UINT8 *buffer, UINTN *bufferSize)
+{
+  EFI_FILE_PROTOCOL *file;
+  EFI_STATUS status = util_openFile(SystemTable, ImageHandle, filename, &file, TRUE);
+  if(status != EFI_SUCCESS) return status;
+
+  uefi_call_wrapper(file->Write, 3, file, bufferSize, buffer);
+  uefi_call_wrapper(file->Close, 1, file);
+  return EFI_SUCCESS;
+}
+
